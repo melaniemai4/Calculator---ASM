@@ -1,92 +1,49 @@
 # Calculator-ASM
 
-Para el desarrollo de este trabajo, decidimos establecer algunos horarios para poder pensar y 
-escribir el código en conjunto. No tuvimos ningún problema entre nosotros, hacíamos llamada por 
-meet y mientras uno compartía, los otros dos ayudaban a pensar a estructurar las instrucciones. 
-Fuimos cambiando de rol y encontramos ésta la mejor forma y herramienta para poder avanzar sin 
-problemas.
+For this project, we decided to establish some schedules to think through and write the code together. We had no issues among ourselves, and used Meet calls where one person would share their screen, while the other two helped think and structure the instructions. We switched roles, and found this to be the best way to move forward smoothly.
 
-Dicho eso, pasaremos a explicar la manera en la que abarcamos algunas subrutinas en específico. 
-Al comienzo del main, llamamos a bienvenida (que pide al usuario que ingrese una operación de no 
-más de 6 dígitos cada número), a leer_input_usuario (donde se realiza una syscall para leer lo 
-ingresado por teclado) y luego a salida_usuario (que chequea que lo ingresado sea distinto a 
-“gracias”, el mensaje con el que se sale del programa).
+## Approach
 
-Uno de los inconvenientes que encontramos fue cómo detectar y trabajar con números negativos. 
-Para ello, lo que implementamos fue una serie de subrutinas (es_negativo, detectar_negativo) que 
-básicamente chequean si antes de cada número hay un ‘—‘. Si lo hay, se guarda un flag en r3 (#-1) 
-y se avanza a la siguiente posición (donde ya debería haber un número). Luego se hace un salto a 
-es_cuenta. Con esta función también encontramos algunos problemas para resolver todo tal y 
-como se sugería en el enunciado, entonces lo que decidimos hacer fue: recorrer el input hasta 
-encontrar un espacio e ir guardando el primer número. La subrutina solo acepta espacios, números 
-(sus equivalentes en ASCII) y saltos de línea (\n). Cualquier otra cosa que detecte, va a tirar error.
-Como vimos en clase, le restamos 30 en hexa al número apuntado y con otra subrutina vamos 
-multiplicando por peso (centenas, decenas, etc.).
+Now, we’ll explain how we approached some specific subroutines.
 
-Una vez que está posicionado sobre el primer espacio, vuelve al main con una subrutina llamada 
-volver_main. Al tener que utilizar un condicional para volver al main (en este caso, que el caracter 
-sea un espacio) vimos necesario crear esa rutina. Si el número ingresado tenía un ‘—‘ adelante, 
-utilizando el flag de r3, pasamos el número a convertir_a_negativo. Después de limpiar algunos 
-registros, hacemos lo mismo con el segundo número. Para avanzar hasta donde estaría ese número, 
-guardamos la dirección de memoria del primer espacio en un registro auxiliar (ya que luego lo vamos 
-a necesitar para saber cuál es la operación) y avanzamos 3 posiciones (1era: operador, 2da: segundo 
-espacio y 3era: un ‘—‘ o el comienzo del número). Luego de obtener el segundo número, utilizamos 
-aquél registro auxiliar donde guardamos la posición del primer espacio y avanzamos un lugar. De 
-ahí se llama a leer_operación.
+At the beginning of the `main`, we call:
+- `bienvenida`: Asks the user to input an operation where each number is no longer than 6 digits.
+- `leer_input_usuario`: Uses a syscall to read the user input from the keyboard.
+- `salida_usuario`: Checks if the input is “gracias,” which exits the program.
 
-Utilizar subrutinas como convertir_a_negativo nos facilitó mucho el trabajo ya que tanto con la 
-suma, como con la resta y la multiplicación, las operaciones entre dos números, sin importar su 
-signo, se pueden realizar sin ningún problema. Sin embargo, tuvimos que hacer un par de funciones 
-aparte solo para las divisiones. 
-En leer_operacion, si detecta que debe realizar una división, salta a una subrutina llamada 
-prev_division. Esta función se encarga de pasar los números a positivo (en caso de que no lo fueran) 
-y aumenta un contador en r8. Más adelante, utilizaremos ese flag para saber si ambos tenían el 
-mismo signo (el flag estará en 0 o 2) o si había uno con signo diferente (flag en 1).
-También, prev_division chequea que ambos números sean distintos de cero ya que detectamos dos 
-casos particulares con este número. A) si el primer número es 0, no importa cuál sea el segundo, el 
-resultado será 0. B) si el segundo número es 0, salta un error ya que no se puede dividir por 0. Luego 
-de pasar por esas subrutinas “de control”, salta a división.
-2
-Devuelta al main, si el resultado es negativo se guarda un flag en r0 para luego utilizarlo al imprimir 
-dicho resultado. Para evitar complicaciones al momento de pasar de entero a .asciz, decidimos pasar 
-el resultado a positivo y trabajar solamente con el número.
-Lo último que hacemos en el main es chequear si el resultado tiene 1 digito (0 al 9) o 2 dígitos en 
-adelante. Si tiene más de dos dígitos, saltará a recorrer_resultado_xDigito y sino, sigue de largo y 
-salta a otra subrutina llamada imprimir_digito.
-En recorrer_resultado_xDigito simplemente tomamos el número, lo vamos dividiendo por 10 hasta 
-obtener el resto. Por cada vez que lo dividimos, sumamos 1 al contador (cociente). Cuando 
-encontramos el resto, se llama a push_digito; acá se pasa a hexa aquél digito e inmediatamente lo 
-pusheamos en la pila. Utilizamos dos contadores; uno que es 
-particularmente para saber cuántos push hicimos (r4) y hacer la 
-misma cantidad de pop; el otro es para saber cuántos son los 
-caracteres finales que vamos a imprimir (r11) y ese registro es 
-utilizado en mostrar_salida (entonces así se imprimen 
-exactamente la cantidad de caracteres que necesitamos). En 
-push_digito, al registro RESTO le pasamos el número que quedó 
-como cociente, y a COCIENTE lo reiniciamos en 0. Cuando el 
-“nuevo” resto sea menor a 10, el programa entenderá que se llegó 
-al primer dígito y hará una última vez un pasaje a hexa y un push.
-Por último, se comparan los flags para saber si el resultado era negativo o si debe imprimirse un 
-‘—‘ en el caso de las divisiones. R0 se utilizará en general para el resultado negativo y r8 cuando se 
-trate de una división; como mencionamos anteriormente, r8 informará si ambos números tenían el 
-mismo signo o no (nos importa si tiene un 1 nada más).
-De ser así, se pasa a push_negativo, donde lo único que hacemos es guardar el ASCII 2D (el ‘—‘) en 
-el registro del resultado, lo pushea en el tope de la pila y aumenta los dos contadores. Directamente 
-de ahí, se llama a desapilar_digitos y se van haciendo pop (en orden) de cada carácter a imprimir. 
-Esto se va guardando en un .asciz iniciado como “” (vacío) y lo hace hasta que el contador de push 
-es 0.
-Solo por una cuestión estética, añadimos una subrutina que lo único que hace es agregar, al final de 
-la cadena a imprimir, un salto de línea (\n). Inmediatamente, avanza a la etiqueta mostrar_salida
-donde se realiza una syscall para mostrar en pantalla el resultado, y finalmente avanza a
-limpiar_registros. Al final de esta última etiqueta se salta al main, donde todo se vuelve a ejecutar 
-correctamente. Y como dijimos al principio, hasta que el usuario no ingrese la palabra “gracias” el 
-programa se seguirá ejecutando y pidiendo que se ingresen operaciones. Si se ingresa un formato 
-inválido como “24 +3” o “45-1”, poniendo espacios demás o ingresando cualquier palabra distinta a 
-“gracias” como “hola” o “chau”, saltará un error informando que el formato no es válido y que debes 
-ingresar una operación. 
-Observamos que hay una operación en particular donde falla el programa. Por una cuestión de 
-cuántos dígitos soporta el comando mul, la multiplicación entre 2 números de 6 dígitos tira error. 
-Por ejemplo, al querer multiplicar 100000 * 100000, nos debería dar como resultado 10 mil millones 
-(2540be400 en hexa). Sin embargo, al imprimir, sucede que imprime 1410065408 (540be400). 
-Nosotros creemos que al tener 9 dígitos en hexadecimal y por ciertas limitaciones de la arquitectura, 
-solo pudo imprimir 8 dígitos
+One issue we encountered was detecting and working with negative numbers. To solve this, we implemented several subroutines (`es_negativo`, `detectar_negativo`) that check if there is a `-` before a number. If there is, a flag is set in `r3` (#-1), and the position advances to the next character (which should be a number). Then, the program jumps to `es_cuenta`.
+
+## Handling Input
+
+We faced some challenges resolving the tasks as suggested in the prompt, so we opted to:
+- Traverse the input until a space is found.
+- Store the first number.
+
+The subroutine accepts only spaces, numbers (their ASCII equivalents), and newlines (`\n`). If it detects anything else, it throws an error. As we learned in class, we subtract `30h` from the pointed number and use another subroutine to multiply by the positional weight (hundreds, tens, etc.).
+
+Once we reach the first space, we return to the `main` with a subroutine called `volver_main`. Since we needed a condition to return to `main` (in this case, the space character), we created this routine.
+
+If the entered number had a `-`, using the `r3` flag, we pass the number to `convertir_a_negativo`. After cleaning some registers, we repeat the same process for the second number. To advance to where the second number would be, we store the memory address of the first space in a helper register (since we will need it to know the operation) and move 3 positions forward (1st: operator, 2nd: second space, and 3rd: a `-` or the start of the number). After obtaining the second number, we use the helper register where we stored the position of the first space and move one place forward. From there, we call `leer_operacion`.
+
+Using subroutines like `convertir_a_negativo` made our work much easier, as operations between two numbers, regardless of their sign, can be performed without any issues. However, we had to create additional functions specifically for division.
+
+In `leer_operacion`, if it detects a division, it jumps to a subroutine called `prev_division`. This function converts numbers to positive (if they aren’t already) and increments a counter in `r8`. Later, we use this flag to determine if both numbers had the same sign (the flag will be 0 or 2) or if there was a sign difference (flag in 1). `prev_division` also checks that both numbers are not zero, as we encountered two special cases with zero:
+1. If the first number is 0, the result is 0 regardless of the second number.
+2. If the second number is 0, an error is thrown since division by zero is not allowed.
+
+After passing through these “control” subroutines, it jumps to `division`.
+
+Back in the `main`, if the result is negative, a flag is set in `r0` to be used when printing the result. To avoid complications when converting from integer to `.asciz`, we decided to convert the result to positive and work with the number only.
+
+Finally, in the `main`, we check if the result has 1 digit (0 to 9) or 2 digits and beyond. If it has more than two digits, it jumps to `recorrer_resultado_xDigito`; otherwise, it proceeds to another subroutine called `imprimir_digito`.
+
+In `recorrer_resultado_xDigito`, we simply take the number, divide it by 10 until we get the remainder. For each division, we increment a counter (quotient). When we find the remainder, we call `push_digito`; here, we convert the digit to hexadecimal and push it onto the stack. We use two counters: one to keep track of how many pushes we did (`r4`) and another to determine how many characters we will print (`r11`). This register is used in `mostrar_salida`, so we print exactly the number of characters needed. In `push_digito`, the `RESTO` register gets the number remaining as the quotient, and `COCIENTE` is reset to 0. When the “new” remainder is less than 10, the program will understand that it has reached the first digit and performs one last conversion to hexadecimal and push.
+
+Finally, we compare the flags to determine if the result was negative or if a `-` should be printed in the case of division. `r0` is used generally for the negative result, and `r8` when dealing with division; `r8` will inform if both numbers had the same sign or not (we care only if it has a 1).
+
+If so, it goes to `push_negativo`, where we only store the ASCII `2D` (the `-`) in the result register, push it onto the stack, and increment both counters. From there, it directly calls `desapilar_digitos` to pop each character in order. This is stored in an `.asciz` initialized as `""` (empty) until the push counter is 0.
+
+For aesthetic reasons, we added a subroutine that only adds a newline (`\n`) at the end of the string to print. It then proceeds to `mostrar_salida`, where a syscall is performed to display the result on the screen, and finally advances to `limpiar_registros`. At the end of this last subroutine, it jumps back to the `main`, where everything executes correctly again. As mentioned at the beginning, the program will continue running and requesting operations until the user inputs the word “gracias.” If an invalid format like “24 +3” or “45-1” is entered, or any word other than “gracias” like “hola” or “chau,” an error will be thrown informing that the format is invalid and asking for a valid operation.
+
+We observed one particular operation where the program fails. Due to the number of digits supported by the `mul` command, multiplying two 6-digit numbers results in an error. For example, multiplying 100000 * 100000 should give 10 billion (2540be400 in hexadecimal). However, when printing, it shows 1410065408 (540be400). We believe that due to having 9 hexadecimal digits and certain architecture limitations, it could only print 8 digits.
+
